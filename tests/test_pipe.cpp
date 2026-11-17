@@ -119,3 +119,32 @@ TEST(Pipe, ReportsCreationFailureWithOperatingSystemError) {
     EXPECT_TRUE(threw_system_error);
     if(threw_system_error) EXPECT_EQ(error_code, EMFILE);
 }
+
+TEST(Pipe, MoveAssignmentClosesPreviouslyOwnedDescriptors) {
+    auto first = miniposix::Pipe::create();
+    auto second = miniposix::Pipe::create();
+    const int first_reader = first.read_end().get();
+    const int first_writer = first.write_end().get();
+    const int second_reader = second.read_end().get();
+    const int second_writer = second.write_end().get();
+    ASSERT_GE(first_reader, 0);
+    ASSERT_GE(first_writer, 0);
+    ASSERT_GE(second_reader, 0);
+    ASSERT_GE(second_writer, 0);
+
+    first = std::move(second);
+
+    EXPECT_FALSE(is_open(first_reader));
+    EXPECT_FALSE(is_open(first_writer));
+    EXPECT_EQ(first.read_end().get(), second_reader);
+    EXPECT_EQ(first.write_end().get(), second_writer);
+    EXPECT_EQ(second.read_end().get(), -1);
+    EXPECT_EQ(second.write_end().get(), -1);
+    EXPECT_TRUE(is_open(second_reader));
+    EXPECT_TRUE(is_open(second_writer));
+
+    // Second's former descriptors are still owned by first, so only the old
+    // ones may be closed defensively here; first's destructor closes the rest.
+    if(is_open(first_reader)) ::close(first_reader);
+    if(is_open(first_writer)) ::close(first_writer);
+}

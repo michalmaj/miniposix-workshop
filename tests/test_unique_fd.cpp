@@ -177,3 +177,11 @@ TEST(UniqueFd, MoveAssignmentClosesPreviousAndTransfersNewDescriptor) {
     if(is_open(old_fd)) ::close(old_fd);
     if(is_open(new_fd)) ::close(new_fd);
 }
+
+TEST(UniqueFd, ReleaseOnEmptyReturnsMinusOne) {
+    miniposix::UniqueFd empty;
+    EXPECT_EQ(empty.release(), -1);
+    EXPECT_EQ(empty.get(), -1);
+    empty.reset(-1);
+    EXPECT_EQ(empty.get(), -1);
+}
