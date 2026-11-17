@@ -7,10 +7,16 @@
 namespace miniposix {
 
 Pipe Pipe::create() {
-    // TODO: Use a Linux pipe creation call; put its read and write descriptors
-    // into the two UniqueFd members. If creation fails, throw
-    // std::system_error with errno and do not leak either descriptor.
-    return Pipe{};
+    int ends[2] = {-1, -1};
+    if(::pipe(ends) == -1) {
+        const int error = errno;
+        throw std::system_error(error, std::generic_category(), "pipe");
+    }
+
+    Pipe result;
+    result.read_end_.reset(ends[0]);
+    result.write_end_.reset(ends[1]);
+    return result;
 }
 
 } // namespace miniposix

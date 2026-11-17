@@ -1,5 +1,6 @@
 #include "miniposix/pipe.hpp"
 
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -9,16 +10,20 @@
 #include <csignal>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -30,6 +35,10 @@ namespace {
         std::size_t total_bytes = 8 * kMib;
         std::size_t repeats = 3;
         std::vector<std::size_t> buffer_sizes = {512, 4096, 65536};
+        std::size_t pipe_capacity = 0; // 0 = leave the kernel default
+        std::size_t warmup = 0;        // transfers discarded before the measured loop
+        unsigned int seed = 0;         // 0 = keep the original buffer/repeat order
+        bool pattern = false;          // precompute bytes and use memcmp instead of per-byte work
     };
 
     struct Result {
@@ -47,6 +56,13 @@ namespace {
             throw std::invalid_argument(std::string(option) + " requires a positive integer");
         }
         return value;
+    }
+
+    std::size_t nonnegative_integer(std::string_view text, std::string_view option) {
+        if (text == "0") {
+            return 0;
+        }
+        return positive_integer(text, option);
     }
 
     std::vector<std::size_t> parse_buffer_sizes(std::string_view text) {
@@ -73,8 +89,12 @@ namespace {
 
     void usage(const char *program) {
         std::cout << "Usage: " << program
-                  << " [--output FILE] [--bytes N] [--repeats N] [--buffer-sizes N,N,...]\n"
-                  << "Defaults: bench-results/pipe.csv, 8388608 bytes, 3 repeats, 512,4096,65536 byte buffers\n";
+                  << " [--output FILE] [--bytes N] [--repeats N] [--buffer-sizes N,N,...]"
+                     " [--pipe-capacity N] [--warmup N] [--seed N] [--pattern 0|1]\n"
+                  << "Defaults: bench-results/pipe.csv, 8388608 bytes, 3 repeats, 512,4096,65536 byte buffers\n"
+                  << "--pipe-capacity 0 leaves the default pipe size; a positive value uses F_SETPIPE_SZ\n"
+                  << "--warmup N discards N transfers; --seed N > 0 shuffles the measurement order\n"
+                  << "--pattern 1 precomputes the payload and verifies it with memcmp (no per-byte loops)\n";
     }
 
     Options parse_options(int argc, char **argv) {
@@ -100,6 +120,24 @@ namespace {
                 options.repeats = positive_integer(value, option);
             } else if (option == "--buffer-sizes") {
                 options.buffer_sizes = parse_buffer_sizes(value);
+            } else if (option == "--pipe-capacity") {
+                options.pipe_capacity = nonnegative_integer(value, option);
+                if (options.pipe_capacity > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+                    throw std::invalid_argument("--pipe-capacity does not fit in an int");
+                }
+            } else if (option == "--warmup") {
+                options.warmup = nonnegative_integer(value, option);
+            } else if (option == "--seed") {
+                const auto parsed_seed = nonnegative_integer(value, option);
+                if (parsed_seed > std::numeric_limits<unsigned int>::max()) {
+                    throw std::invalid_argument("--seed must fit in an unsigned int");
+                }
+                options.seed = static_cast<unsigned int>(parsed_seed);
+            } else if (option == "--pattern") {
+                if (value != "0" && value != "1") {
+                    throw std::invalid_argument("--pattern requires 0 or 1");
+                }
+                options.pattern = value == "1";
             } else {
                 throw std::invalid_argument("unknown option: " + std::string(option));
             }
@@ -111,34 +149,44 @@ namespace {
         return static_cast<unsigned char>(offset % 251);
     }
 
-    void write_exactly(int descriptor, std::size_t total_bytes, std::size_t buffer_bytes) {
-        std::vector<unsigned char> buffer(buffer_bytes);
+    void write_all(int descriptor, const unsigned char *data, std::size_t count) {
+        std::size_t cursor = 0;
+        while (cursor < count) {
+            const auto written = ::write(descriptor, data + cursor, count - cursor);
+            if (written < 0 && errno == EINTR) {
+                continue;
+            }
+            if (written < 0) {
+                throw std::system_error(errno, std::generic_category(), "pipe write");
+            }
+            if (written == 0) {
+                throw std::runtime_error("pipe write made no progress");
+            }
+            cursor += static_cast<std::size_t>(written);
+        }
+    }
+
+    // `pattern` is null for the original generated mode; buffers are allocated by measure()
+    // before the timer starts so allocation is not part of the measured transfer.
+    void write_exactly(int descriptor, std::size_t total_bytes, std::size_t buffer_bytes,
+                       std::vector<unsigned char> &buffer, const unsigned char *pattern) {
         std::size_t sent = 0;
         while (sent < total_bytes) {
             const auto count = std::min(buffer_bytes, total_bytes - sent);
-            for (std::size_t offset = 0; offset < count; ++offset) {
-                buffer[offset] = byte_at(sent + offset);
-            }
-            std::size_t cursor = 0;
-            while (cursor < count) {
-                const auto written = ::write(descriptor, buffer.data() + cursor, count - cursor);
-                if (written < 0 && errno == EINTR) {
-                    continue;
+            if (pattern != nullptr) {
+                write_all(descriptor, pattern + sent, count);
+            } else {
+                for (std::size_t offset = 0; offset < count; ++offset) {
+                    buffer[offset] = byte_at(sent + offset);
                 }
-                if (written < 0) {
-                    throw std::system_error(errno, std::generic_category(), "pipe write");
-                }
-                if (written == 0) {
-                    throw std::runtime_error("pipe write made no progress");
-                }
-                cursor += static_cast<std::size_t>(written);
+                write_all(descriptor, buffer.data(), count);
             }
             sent += count;
         }
     }
 
-    bool read_and_verify(int descriptor, std::size_t total_bytes, std::size_t buffer_bytes) {
-        std::vector<unsigned char> buffer(buffer_bytes);
+    bool read_and_verify(int descriptor, std::size_t total_bytes, std::size_t buffer_bytes,
+                         std::vector<unsigned char> &buffer, const unsigned char *pattern) {
         std::size_t received = 0;
         bool correct = true;
         while (received < total_bytes) {
@@ -153,18 +201,42 @@ namespace {
             if (read_count == 0) {
                 throw std::runtime_error("pipe reached EOF before the expected byte count");
             }
-            for (std::size_t offset = 0; offset < static_cast<std::size_t>(read_count); ++offset) {
-                if (buffer[offset] != byte_at(received + offset)) {
+            const auto bytes = static_cast<std::size_t>(read_count);
+            if (pattern != nullptr) {
+                if (std::memcmp(buffer.data(), pattern + received, bytes) != 0) {
                     correct = false;
                 }
+            } else {
+                for (std::size_t offset = 0; offset < bytes; ++offset) {
+                    if (buffer[offset] != byte_at(received + offset)) {
+                        correct = false;
+                    }
+                }
             }
-            received += static_cast<std::size_t>(read_count);
+            received += bytes;
         }
         return correct;
     }
 
-    Result measure(std::size_t total_bytes, std::size_t buffer_bytes, std::size_t repeat) {
+    Result measure(std::size_t total_bytes, std::size_t buffer_bytes, std::size_t repeat,
+                   std::size_t pipe_capacity, bool use_pattern) {
         auto pipe = miniposix::Pipe::create();
+        if (pipe_capacity != 0) {
+            const int actual = ::fcntl(pipe.write_end().get(), F_SETPIPE_SZ, static_cast<int>(pipe_capacity));
+            if (actual == -1) {
+                throw std::system_error(errno, std::generic_category(), "fcntl F_SETPIPE_SZ");
+            }
+        }
+        std::vector<unsigned char> write_buffer(buffer_bytes);
+        std::vector<unsigned char> read_buffer(buffer_bytes);
+        std::vector<unsigned char> pattern;
+        if (use_pattern) {
+            pattern.resize(total_bytes);
+            for (std::size_t offset = 0; offset < pattern.size(); ++offset) {
+                pattern[offset] = byte_at(offset);
+            }
+        }
+        const auto payload = pattern.empty() ? nullptr : pattern.data();
         std::exception_ptr writer_failure;
         std::exception_ptr reader_failure;
         bool correct = false;
@@ -172,14 +244,14 @@ namespace {
         const auto start = std::chrono::steady_clock::now();
         std::jthread writer([&] {
             try {
-                write_exactly(pipe.write_end().get(), total_bytes, buffer_bytes);
+                write_exactly(pipe.write_end().get(), total_bytes, buffer_bytes, write_buffer, payload);
             } catch (...) {
                 writer_failure = std::current_exception();
             }
             pipe.write_end().reset();
         });
         try {
-            correct = read_and_verify(pipe.read_end().get(), total_bytes, buffer_bytes);
+            correct = read_and_verify(pipe.read_end().get(), total_bytes, buffer_bytes, read_buffer, payload);
         } catch (...) {
             reader_failure = std::current_exception();
             // Release the reader so a failed run cannot leave the writer blocked.
@@ -237,14 +309,36 @@ int main(int argc, char **argv) {
         if (std::signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
             throw std::system_error(errno, std::generic_category(), "ignore SIGPIPE");
         }
-        std::vector<Result> results;
+        for (std::size_t warmup = 0; warmup < options.warmup; ++warmup) {
+            for (const auto buffer_bytes: options.buffer_sizes) {
+                (void) measure(options.total_bytes, buffer_bytes, 0, options.pipe_capacity, options.pattern);
+            }
+        }
+
+        struct Task {
+            std::size_t buffer_bytes;
+            std::size_t repeat;
+        };
+        std::vector<Task> tasks;
+        tasks.reserve(options.buffer_sizes.size() * options.repeats);
         for (const auto buffer_bytes: options.buffer_sizes) {
             for (std::size_t repeat = 1; repeat <= options.repeats; ++repeat) {
-                const auto result = measure(options.total_bytes, buffer_bytes, repeat);
-                results.push_back(result);
-                std::cout << buffer_bytes << " bytes, repeat " << repeat << ": " << std::fixed
-                          << std::setprecision(2) << result.throughput_mib_s << " MiB/s\n";
+                tasks.push_back({buffer_bytes, repeat});
             }
+        }
+        if (options.seed != 0) {
+            std::mt19937 generator(options.seed);
+            std::shuffle(tasks.begin(), tasks.end(), generator);
+        }
+
+        std::vector<Result> results;
+        results.reserve(tasks.size());
+        for (const auto &task: tasks) {
+            const auto result = measure(options.total_bytes, task.buffer_bytes, task.repeat,
+                                        options.pipe_capacity, options.pattern);
+            results.push_back(result);
+            std::cout << task.buffer_bytes << " bytes, repeat " << task.repeat << ": " << std::fixed
+                      << std::setprecision(2) << result.throughput_mib_s << " MiB/s\n";
         }
         save_results(options.output, results);
         std::cout << "Saved " << results.size() << " measurements to " << options.output << '\n';
