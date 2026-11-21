@@ -6,7 +6,7 @@
 
 namespace miniposix {
 
-// Owns both ends of one anonymous Linux pipe. Read from read_end(), write to
+// Owns both ends of one anonymous POSIX pipe. Read from read_end(), write to
 // write_end(). Moving transfers ownership; copying is disabled.
 class Pipe {
 public:

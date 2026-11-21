@@ -1,46 +1,46 @@
 # MiniPOSIX – programowanie, testowanie i analiza w C++23
 
-Repozytorium startowe zadania dla studentów mechatroniki. Rozwiniesz niewielką bibliotekę C++23 korzystającą z mechanizmów systemu Linux, sprawdzisz ją testami i przeanalizujesz pomiary transferu danych. Dokładny kontrakt i wymagane ćwiczenia znajdują się w [ASSIGNMENT.md](ASSIGNMENT.md).
+Repozytorium startowe zadania semestralnego dla studentów mechatroniki. Rozwiniesz niewielką bibliotekę C++23 korzystającą z mechanizmów POSIX, sprawdzisz ją testami i przeanalizujesz pomiary transferu danych. Dokładny kontrakt i wymagane ćwiczenia znajdują się w [ASSIGNMENT.md](ASSIGNMENT.md).
 
 Nie musisz znać wcześniej POSIX-a. **Deskryptor pliku** to liczba identyfikująca otwarty zasób systemu. **Potok (pipe)** łączy koniec do zapisu z końcem do odczytu. Główne funkcje biblioteki są w starterze celowo niedokończone.
 
-## Wymagania
+## Wymagania dotyczące środowiska
 
-- Linux. Na komputerach uczelnianych z Windows użyj przygotowanej maszyny Ubuntu opisanej niżej. Na własnym komputerze zalecane jest Ubuntu 24.04 LTS.
-- LLVM/Clang 22 jako `clang-22` i `clang++-22`, z obsługą C++23. Presety CMake używają dokładnie tych nazw. Jeśli brakuje kompilatorów, skorzystaj z [instrukcji pakietów LLVM dla Ubuntu](https://apt.llvm.org/) właściwej dla Twojej wersji systemu.
+Do wykonania zadania wymagany jest **Linux lub macOS**. Osoby korzystające z Windows muszą przygotować maszynę wirtualną z Linuxem, np. Ubuntu 24.04 LTS w Oracle VirtualBox. Zadanie wykorzystuje mechanizmy POSIX i nie jest przeznaczone do uruchamiania bezpośrednio w Windows. Repozytorium sklonuj w odpowiednim systemie; tam wykonaj kompilację, testy, analizę, lokalny commit oraz `git archive`. W przypadku Windows wszystkie te kroki wykonaj wewnątrz maszyny wirtualnej.
+
+- LLVM/Clang 22 z obsługą C++23. Presety CMake wskazują nazwy `clang-22` i `clang++-22`, dostępne na Linuxie po instalacji odpowiednich pakietów. Jeśli ich brakuje na Ubuntu, skorzystaj z [instrukcji pakietów LLVM](https://apt.llvm.org/) właściwej dla Twojej wersji systemu. Na macOS użyj konfiguracji opisanej niżej.
 - CMake 3.28 lub nowszy, Ninja, Git, `unzip` oraz pakiet deweloperski GoogleTest. Na Ubuntu zależność testów można zainstalować poleceniem `sudo apt install libgtest-dev`.
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) i Python 3.12 lub nowszy do analizy CSV. `uv` tworzy lokalne środowisko i może pobrać odpowiednią wersję Pythona; szczegóły są w [analysis/README.md](analysis/README.md).
 - Dostęp do dowolnego narzędzia AI na potrzeby obowiązkowego ćwiczenia weryfikacyjnego. Przy implementacji użycie AI jest opcjonalne. Możesz użyć np. [OpenCode](https://opencode.ai/docs/); zadanie nie wymaga konkretnego płatnego modelu.
-
-Na stanowiskach uczelnianych skonfiguruj CLion zgodnie z instrukcją poniżej. Projekt można również zbudować i przetestować w terminalu.
 
 Jeśli nie masz dostępu do narzędzia AI potrzebnego do ćwiczenia weryfikacyjnego, zgłoś to prowadzącemu przed rozpoczęciem tej części zadania.
 
 Jeśli brakuje `uv`, zainstaluj je według [oficjalnej instrukcji](https://docs.astral.sh/uv/getting-started/installation/), na przykład poleceniem `curl -LsSf https://astral.sh/uv/install.sh | sh`. Otwórz nowy terminal i sprawdź `uv --version`. Pakiety do analizy zostaną zainstalowane w lokalnym `analysis/.venv`.
 
-## Komputery uczelniane z Windows
-
-1. W systemie Windows uruchom **Oracle VirtualBox**, wybierz maszynę oznaczoną **Ubuntu 26.06 LTS AI** i ją uruchom. Jest to nazwa wyświetlana w VirtualBox.
-2. Terminal i CLion uruchamiaj **wewnątrz maszyny Ubuntu**. Tam sklonuj repozytorium i wykonuj polecenia budowania, testowania oraz analizy.
-3. W terminalu Ubuntu sprawdź `command -v clang-22 clang++-22`. Oba kompilatory powinny znajdować się w `/usr/bin`.
-4. W CLion otwórz **Settings → Build, Execution, Deployment → Toolchains** i dodaj lub wybierz lokalny toolchain. Ustaw **C Compiler** na `/usr/bin/clang-22`, a **C++ Compiler** na `/usr/bin/clang++-22`.
-5. W **Settings → Build, Execution, Deployment → CMake** włącz preset `clang22-debug`, jeśli jest wyłączony, i wybierz go przed budowaniem.
-
-Sprawdź dostępność narzędzi przed rozpoczęciem pracy:
+Na macOS możesz zainstalować narzędzia C++ przez [Homebrew](https://brew.sh/):
 
 ```bash
-command -v clang-22 clang++-22 cmake ninja git uv
-clang-22 --version
-clang++-22 --version
-cmake --version
-uv --version
+brew install llvm@22 cmake ninja googletest
+"$(brew --prefix llvm@22)/bin/clang++" --version
 ```
 
-Jeśli kompilatory są zainstalowane poza `/usr/bin`, dodaj ich katalog do `PATH` **przed** konfiguracją CMake, a w CLion ustaw rzeczywiste ścieżki do obu kompilatorów. Upewnij się, że CLion dziedziczy ten sam `PATH`. Samo przestawienie kompilatora w toolchainie CLion nie zmienia kompilatora używanego przez terminal ani przez presety CMake.
+Homebrew instaluje LLVM 22 poza domyślną ścieżką kompilatorów. Dlatego na macOS w poleceniach konfiguracji CMake poniżej podajemy ścieżki przez `brew --prefix llvm@22`; wskazujemy również lokalizację GoogleTest. Jeżeli używasz CLion, ustaw jego toolchain i opcje CMake na te same ścieżki. Wymagane są też Apple Command Line Tools (w razie potrzeby: `xcode-select --install`).
+
+Przed rozpoczęciem pracy sprawdź wersje narzędzi oraz dostępność `unzip`:
+
+```bash
+cmake --version
+ninja --version
+git --version
+uv --version
+command -v unzip
+```
+
+Na Linuxie sprawdź także `clang-22 --version` i `clang++-22 --version`.
 
 ## Pobranie projektu
 
-W terminalu Linux sklonuj repozytorium i przejdź do jego katalogu:
+W terminalu Linux lub macOS (na Windows: wewnątrz maszyny wirtualnej) sklonuj repozytorium i przejdź do jego katalogu:
 
 ```bash
 git clone https://github.com/michalmaj/miniposix-workshop.git
@@ -51,10 +51,24 @@ Przeczytaj [ASSIGNMENT.md](ASSIGNMENT.md) i publiczne nagłówki w `include/mini
 
 ## Budowanie i testy
 
-Polecenia wykonuj z głównego katalogu repozytorium:
+Z głównego katalogu repozytorium skonfiguruj wariant Debug. Na Linuxie:
 
 ```bash
 cmake --preset clang22-debug
+```
+
+Na macOS:
+
+```bash
+cmake --preset clang22-debug \
+  -DCMAKE_C_COMPILER="$(brew --prefix llvm@22)/bin/clang" \
+  -DCMAKE_CXX_COMPILER="$(brew --prefix llvm@22)/bin/clang++" \
+  -DCMAKE_PREFIX_PATH="$(brew --prefix googletest)"
+```
+
+Następnie na obu systemach:
+
+```bash
 cmake --build --preset clang22-debug --parallel
 ctest --preset clang22-debug-smoke --no-tests=error
 ctest --preset clang22-debug-functional --no-tests=error
@@ -62,14 +76,28 @@ ctest --preset clang22-debug-functional --no-tests=error
 
 W niezmienionym starterze test `smoke` powinien przejść, a część testów funkcjonalnych powinna się nie powieść: implementacja jest Twoim zadaniem. Po poprawkach uruchamiaj testy ponownie. Wszystkie zarejestrowane testy możesz uruchomić poleceniem `ctest --test-dir build/clang22-debug --output-on-failure`.
 
-Do diagnozowania błędów możesz użyć kompilacji Debug, debuggera, a opcjonalnie ASan/UBSan lub `strace`. Sama udana kompilacja nie potwierdza poprawności zarządzania deskryptorami; sprawdzaj zachowanie opisane w nagłówkach i [ASSIGNMENT.md](ASSIGNMENT.md).
+Do diagnozowania błędów możesz użyć kompilacji Debug, debuggera, a opcjonalnie ASan/UBSan; na Linuxie przydatny może być też `strace`. Sama udana kompilacja nie potwierdza poprawności zarządzania deskryptorami; sprawdzaj zachowanie opisane w nagłówkach i [ASSIGNMENT.md](ASSIGNMENT.md).
 
 ## Benchmark i analiza CSV
 
-Po przejściu testów biblioteki zbuduj wariant zoptymalizowany i wykonaj pomiary:
+Po przejściu testów biblioteki skonfiguruj wariant zoptymalizowany. Na Linuxie:
 
 ```bash
 cmake --preset clang22-perf
+```
+
+Na macOS:
+
+```bash
+cmake --preset clang22-perf \
+  -DCMAKE_C_COMPILER="$(brew --prefix llvm@22)/bin/clang" \
+  -DCMAKE_CXX_COMPILER="$(brew --prefix llvm@22)/bin/clang++" \
+  -DCMAKE_PREFIX_PATH="$(brew --prefix googletest)"
+```
+
+Następnie na obu systemach zbuduj benchmark i wykonaj pomiary:
+
+```bash
 cmake --build --preset clang22-perf --parallel
 mkdir -p bench-results
 ./build/clang22-perf/bench_pipe --output bench-results/pipe.csv

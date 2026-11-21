@@ -2,7 +2,7 @@
 
 namespace miniposix {
 
-// Owns one Linux file descriptor. -1 means empty; every other value is owned.
+// Owns one POSIX file descriptor. -1 means empty; every other value is owned.
 // Do not close an owned descriptor through a raw POSIX call.
 class UniqueFd {
 public:

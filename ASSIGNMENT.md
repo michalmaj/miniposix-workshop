@@ -1,6 +1,6 @@
 # MiniPOSIX — implementacja, testowanie i analiza w C++23
 
-Rozwijasz niewielką bibliotekę korzystającą z mechanizmów POSIX w systemie Linux. Repozytorium jest starterem: główne funkcje biblioteki są celowo niedokończone. Zadanie wykonujesz samodzielnie w lokalnej kopii repozytorium. Sposób przygotowania archiwum do Moodle opisuje [README.md](README.md).
+Rozwijasz niewielką bibliotekę korzystającą z mechanizmów POSIX w systemie Linux lub macOS. Repozytorium jest starterem: główne funkcje biblioteki są celowo niedokończone. Zadanie wykonujesz samodzielnie w lokalnej kopii repozytorium. Wymagania środowiskowe i sposób przygotowania archiwum do Moodle opisuje [README.md](README.md).
 
 Możesz używać AI przy implementacji, ale nie jest to wymagane. **Obowiązkowa jest część weryfikacyjna:** porównasz dwie odpowiedzi AI na to samo pytanie o zachowanie POSIX i sprawdzisz wybrane twierdzenie dokumentacją oraz testem. Możesz użyć dowolnego dostępnego narzędzia AI; OpenCode jest jedną z możliwości. Każdą przyjętą sugestię musisz rozumieć i umieć wyjaśnić.
 
@@ -8,7 +8,7 @@ Możesz używać AI przy implementacji, ale nie jest to wymagane. **Obowiązkowa
 
 Przeczytaj [README.md](README.md), sprawdź narzędzia, skonfiguruj preset `clang22-debug` i uruchom osobno test infrastruktury oraz testy funkcjonalne. Na niezmienionym starterze test `smoke` powinien przejść, a część testów funkcjonalnych powinna zakończyć się niepowodzeniem. Zanotuj wynik początkowy w `submission/raport.md`.
 
-Warto przed kodowaniem sprawdzić znaczenie pojęć: deskryptor pliku, `open`, `close`, `pipe`/`pipe2`, `read`, `write`, `errno`, RAII, konstruktor i operator przenoszący oraz `std::system_error`.
+Warto przed kodowaniem sprawdzić znaczenie pojęć: deskryptor pliku, `open`, `close`, przenośne wywołanie `pipe`, `read`, `write`, `errno`, RAII, konstruktor i operator przenoszący oraz `std::system_error`.
 
 ## 2. Implementacja i testy
 
@@ -36,7 +36,7 @@ W `submission/raport.md` odpowiedz:
 
 1. Który rozmiar bufora miał najwyższą medianę przepustowości? Czy kolejność wyników była stabilna między powtórzeniami?
 2. Jakie czynności obejmuje pomiar? Dlaczego nie mierzy samego narzutu `UniqueFd`?
-3. Które obserwacje mogą się zmienić na innym komputerze lub przy innym obciążeniu systemu? Co dodały dostępne liczniki `perf stat`, jeśli ich użyłeś?
+3. Które obserwacje mogą się zmienić na innym komputerze lub przy innym obciążeniu systemu? Jeśli pracujesz na Linuxie i użyłeś `perf stat`, co dodały jego liczniki?
 4. Jak zmieniłbyś eksperyment, zanim uznałbyś jeden wariant za ogólnie szybszy?
 
 Jeżeli nie ukończysz biblioteki na czas, poproś prowadzącego o zapasowy CSV i przeprowadź analizę tych danych. W raporcie podaj pochodzenie danych i wyraźnie zaznacz, które pomiary są Twoje. Nie wymyślaj wyników. Sugestie AI dotyczące interpretacji porównuj z surowym CSV, powtórzeniami i warunkami pomiaru.
@@ -48,7 +48,7 @@ Benchmark zapisuje dane domyślnie w ignorowanym przez Git `bench-results/`. Pli
 Wybierz jedno konkretne pytanie o zachowanie POSIX istotne dla biblioteki, na przykład o własność deskryptora, EOF albo częściowe `read`/`write`. Zadaj **to samo pytanie** w dwóch oddzielnych rozmowach z AI lub dwóm dostępnym modelom. Zachowaj obie odpowiedzi. Jeśli narzędzie AI jest niedostępne, zgłoś to prowadzącemu, aby uzyskać odpowiedzi do oceny.
 
 1. Porównaj sprawdzalne twierdzenia obu odpowiedzi. Zgodność odpowiedzi nie jest dowodem poprawności.
-2. Wybierz jedno ważne twierdzenie. Znajdź odpowiednią dokumentację POSIX/Linux i zapisz jej adres oraz to, co mówi o twierdzeniu.
+2. Wybierz jedno ważne twierdzenie. Znajdź odpowiednią dokumentację POSIX lub używanego systemu i zapisz jej adres oraz to, co mówi o twierdzeniu.
 3. Uruchom mały test i zapisz polecenie oraz zaobserwowany wynik. Gdy Twoja biblioteka jest niedokończona, test może być samodzielnym programem. Wyjaśnij, jakie warunki sprawdza test i co nadal wymaga reguły z dokumentacji.
 4. Zapisz w `submission/ai-evidence.json` rekord z polami `claim`, `source_url`, `test_command`, `observed` i `verdict`. Samodzielnie ustaw `verdict` na `accept`, `revise` albo `reject` po ocenie obu odpowiedzi, źródła i testu. Zaznacz pozostałą niepewność.
 5. W `submission/raport.md` umieść obie odpowiedzi lub ich istotne fragmenty oraz narysuj prosty workflow (np. w Mermaid lub jako schemat tekstowy): pytanie → odpowiedzi AI → dokumentacja → test → **decyzja człowieka** → przyjęcie, poprawienie albo odrzucenie sugestii. Decyzja należy do Ciebie przed zapisaniem zaakceptowanej sugestii w commicie.
