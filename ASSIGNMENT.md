@@ -1,79 +1,70 @@
-# Workshop assignment: build, verify, and audit MiniPOSIX
+# MiniPOSIX — implementacja, testowanie i analiza w C++23
 
-You are developing a **small library**, not a POSIX framework. Use OpenCode as a collaborator, but check its suggestions against tests and documentation. The goal is to learn how to verify AI-assisted work in a domain you may not know yet.
+Rozwijasz niewielką bibliotekę korzystającą z mechanizmów POSIX w systemie Linux. Repozytorium jest starterem: główne funkcje biblioteki są celowo niedokończone. Zadanie wykonujesz samodzielnie w lokalnej kopii repozytorium. Sposób przygotowania archiwum do Moodle opisuje [README.md](README.md).
 
-## Before coding
+Możesz używać AI przy implementacji, ale nie jest to wymagane. **Obowiązkowa jest część weryfikacyjna:** porównasz dwie odpowiedzi AI na to samo pytanie o zachowanie POSIX i sprawdzisz wybrane twierdzenie dokumentacją oraz testem. Możesz użyć dowolnego dostępnego narzędzia AI; OpenCode jest jedną z możliwości. Każdą przyjętą sugestię musisz rozumieć i umieć wyjaśnić.
 
-Rate your starting familiarity from **0 (none)** to **3 (comfortable)**. Keep the answers in your team's notes; they are for reflection, not grading.
+## 1. Przygotowanie
 
-| Topic | 0–3 | One thing you already know or need to look up |
-| --- | --- | --- |
-| C++ ownership and move semantics | | |
-| POSIX file descriptors and pipes | | |
-| AI coding agents | | |
+Przeczytaj [README.md](README.md), sprawdź narzędzia, skonfiguruj preset `clang22-debug` i uruchom osobno test infrastruktury oraz testy funkcjonalne. Na niezmienionym starterze test `smoke` powinien przejść, a część testów funkcjonalnych powinna zakończyć się niepowodzeniem. Zanotuj wynik początkowy w `submission/raport.md`.
 
-Read [README.md](README.md), run the tool checks, configure `clang22-debug`, and run the smoke and functional tests separately. A smoke pass with functional failures is the intended initial state.
+Warto przed kodowaniem sprawdzić znaczenie pojęć: deskryptor pliku, `open`, `close`, `pipe`/`pipe2`, `read`, `write`, `errno`, RAII, konstruktor i operator przenoszący oraz `std::system_error`.
 
-## Audit A: an AI agent in an unfamiliar domain
+## 2. Implementacja i testy
 
-**Question:** Can your team use an agent to build a small library and verify its behavior without already knowing POSIX?
+Zaimplementuj kontrakt opisany w publicznych nagłówkach:
 
-Implement the contract in the public headers:
+- `miniposix::UniqueFd` posiada co najwyżej jeden deskryptor. Domyślny stan jest nieprawidłowy (`-1`). Destruktor zamyka posiadany deskryptor. `get()` odczytuje jego wartość, `release()` oddaje własność bez zamykania, a `reset()` zastępuje deskryptor lub zwalnia zasób. Przeniesienie przekazuje własność i unieważnia źródło. Kopiowanie jest zabronione.
+- `miniposix::Pipe::create()` tworzy koniec do odczytu i koniec do zapisu albo zgłasza błąd systemu jako `std::system_error`. `read_end()` i `write_end()` udostępniają referencje do obiektów `UniqueFd`; surowy deskryptor do operacji POSIX uzyskasz przez `.get()`. Sygnatury i szczegóły błędów są w nagłówkach.
+- Poprawność obejmuje czas życia zasobów. Test sprawdzający tylko wartość `get()` nie wykryje każdego wycieku. Sprawdź także, czy stary deskryptor rzeczywiście został zamknięty po zmianie własności. Możesz dodać własny, ukierunkowany test.
 
-- `miniposix::UniqueFd` owns at most one file descriptor. Its default state is invalid. The destructor closes an owned descriptor. `get()` observes it, `release()` transfers the raw descriptor out without closing it, and `reset()` replaces or clears ownership. Moving transfers ownership and invalidates the source. Copying is disabled.
-- `miniposix::Pipe::create()` creates one read end and one write end or reports the operating-system error with `std::system_error`. `read_end()` and `write_end()` expose references to their owning `UniqueFd` objects; call `.get()` to pass a raw descriptor to POSIX I/O. The headers define the exact signatures and error behavior.
-- Correct behavior includes resource lifetime, not just return values. A test should be able to show that an old descriptor is closed after ownership changes. You may add focused public tests while you work.
+Zbuduj projekt i uruchom testy po każdej istotnej zmianie. Przy niepowodzeniu sprawdź faktyczne zachowanie deskryptorów, popraw kod lub test i zapisz w `submission/raport.md`, co było przyczyną poprawki. Jeżeli używasz AI do pisania kodu, czytaj proponowane zmiany i weryfikuj istotne twierdzenia w dokumentacji C++/POSIX.
 
-Useful terms to look up: `open`, `close`, `pipe`/`pipe2`, `read`, `write`, `errno`, RAII, move constructor, move assignment, and `std::system_error`. Read the relevant documentation before accepting an agent's explanation. The optional I/O helper exercise must distinguish end-of-file, interrupted calls, errors, and short transfers if you choose to attempt it. `fork`, `exec`, signal handling, `poll`, and an event loop are outside the required implementation.
+Możesz dodatkowo zaprojektować pomocniczą operację I/O. Musi ona odróżniać koniec danych (EOF), przerwanie wywołania (`EINTR`), błąd i częściowy transfer. `fork`, `exec`, obsługa sygnałów, `poll` i pętla zdarzeń nie należą do obowiązkowej implementacji.
 
-Suggested sequence:
+W raporcie zapisz co najmniej krótką historię prób:
 
-1. Ask OpenCode to explain the contract and propose an implementation and test plan. Make it identify any assumptions about ownership or error paths.
-2. Approve commands deliberately. Inspect the diff and explain each change to a teammate.
-3. Build, run the smoke test, then run functional tests. For a failure, inspect the real descriptor behavior and revise the code or test as needed.
-4. Consult POSIX/C++ documentation to verify at least one claim made by the agent. Record a mistake or an uncertain claim, even if the code ultimately works.
-5. Commit, push, open a PR **to `main` in your own fork**, and inspect the Actions result. A green CI result is feedback, not proof of complete correctness.
+| Próba | Nieudany test lub obserwacja | Zmiana i jej uzasadnienie | Wynik po zmianie |
+| --- | --- | --- | --- |
+| 1 | | | |
 
-Keep a short log of your attempts. Add rows as needed:
+## 3. Benchmark i analiza danych
 
-| Attempt | Failing test or observed behavior | Help needed? | AI mistake or uncertain claim | Evidence and reason for the correction |
-| --- | --- | --- | --- | --- |
-| 1 | | | | |
-| 2 | | | | |
+Po przejściu testów funkcjonalnych uruchom benchmark `bench_pipe` w presecie `clang22-perf` i przeanalizuj CSV za pomocą skryptu w `analysis/`, zgodnie z [README.md](README.md). Benchmark sprawdza przesyłane bajty, obsługuje częściowe operacje I/O i zapisuje powtórzenia bez progu czasu decydującego o poprawności.
 
-This exercise records what your team observed. It cannot establish that AI replaces domain knowledge without a broader controlled study.
+W `submission/raport.md` odpowiedz:
 
-Before moving to Audit B, check that you have a successful build, a passing smoke test, a reasoned explanation of any functional failures, and a branch pushed to your fork with a PR and CI results. A typical bug to investigate is a descriptor that looks correctly stored in the wrapper but remains open after ownership is replaced.
+1. Który rozmiar bufora miał najwyższą medianę przepustowości? Czy kolejność wyników była stabilna między powtórzeniami?
+2. Jakie czynności obejmuje pomiar? Dlaczego nie mierzy samego narzutu `UniqueFd`?
+3. Które obserwacje mogą się zmienić na innym komputerze lub przy innym obciążeniu systemu? Co dodały dostępne liczniki `perf stat`, jeśli ich użyłeś?
+4. Jak zmieniłbyś eksperyment, zanim uznałbyś jeden wariant za ogólnie szybszy?
 
-## Audit B: correctness and performance
+Jeżeli nie ukończysz biblioteki na czas, poproś prowadzącego o zapasowy CSV i przeprowadź analizę tych danych. W raporcie podaj pochodzenie danych i wyraźnie zaznacz, które pomiary są Twoje. Nie wymyślaj wyników. Sugestie AI dotyczące interpretacji porównuj z surowym CSV, powtórzeniami i warunkami pomiaru.
 
-Once the functional tests pass, use the provided pipe benchmark and CSV analysis described in [README.md](README.md). The benchmark should complete for each buffer size, verify the bytes transferred, and save repeat measurements. It handles short I/O and avoids depending on timing thresholds in CI.
+Benchmark zapisuje dane domyślnie w ignorowanym przez Git `bench-results/`. Plik CSV potrzebny do oddania skopiuj do `submission/pipe.csv`. Wykres z analizy zapisz lub skopiuj do `submission/throughput.png`.
 
-In your team's notes, answer:
+## 4. Weryfikacja odpowiedzi AI
 
-1. Which buffer size had the highest median throughput in your run? Was the ordering stable across repeats?
-2. What parts of the transfer are included in the timing? Why is this **not** a measurement of the `UniqueFd` wrapper alone?
-3. Which observations might change on another machine or under a different system load? If you used `perf stat`, which counters were available and what did they add?
-4. What would you change in the experiment before claiming that one variant is generally faster?
+Wybierz jedno konkretne pytanie o zachowanie POSIX istotne dla biblioteki, na przykład o własność deskryptora, EOF albo częściowe `read`/`write`. Zadaj **to samo pytanie** w dwóch oddzielnych rozmowach z AI lub dwóm dostępnym modelom. Zachowaj obie odpowiedzi. Jeśli narzędzie AI jest niedostępne, zgłoś to prowadzącemu, aby uzyskać odpowiedzi do oceny.
 
-If your library is unfinished, use the instructor's reference variant or a supplied CSV for the analysis portion. Report the provenance of the data. Do not invent measurements. You can ask AI to suggest interpretations, but check them against the raw CSV, repeats, and measurement conditions.
+1. Porównaj sprawdzalne twierdzenia obu odpowiedzi. Zgodność odpowiedzi nie jest dowodem poprawności.
+2. Wybierz jedno ważne twierdzenie. Znajdź odpowiednią dokumentację POSIX/Linux i zapisz jej adres oraz to, co mówi o twierdzeniu.
+3. Uruchom mały test i zapisz polecenie oraz zaobserwowany wynik. Gdy Twoja biblioteka jest niedokończona, test może być samodzielnym programem. Wyjaśnij, jakie warunki sprawdza test i co nadal wymaga reguły z dokumentacji.
+4. Zapisz w `submission/ai-evidence.json` rekord z polami `claim`, `source_url`, `test_command`, `observed` i `verdict`. Samodzielnie ustaw `verdict` na `accept`, `revise` albo `reject` po ocenie obu odpowiedzi, źródła i testu. Zaznacz pozostałą niepewność.
+5. W `submission/raport.md` umieść obie odpowiedzi lub ich istotne fragmenty oraz narysuj prosty workflow (np. w Mermaid lub jako schemat tekstowy): pytanie → odpowiedzi AI → dokumentacja → test → **decyzja człowieka** → przyjęcie, poprawienie albo odrzucenie sugestii. Decyzja należy do Ciebie przed zapisaniem zaakceptowanej sugestii w commicie.
 
-## Afternoon exercise: compare AI answers and design a verification workflow
+## Zadania dodatkowe
 
-**Timebox: 35 minutes.** Work with one specific POSIX question that matters to your implementation, such as descriptor ownership, end-of-file, or short `read`/`write` calls:
+- Dodaj test przenoszącego przypisania `Pipe`. Przed przypisaniem obiekt docelowy powinien mieć własne deskryptory. Sprawdź wywołaniem POSIX, że stare deskryptory zostały zamknięte, i wyjaśnij, dlaczego same wartości przechowywane w obiektach nie wystarczają do wykrycia wycieku.
+- Uruchom benchmark ponownie z tymi samymi parametrami transferu i co najmniej 10 powtórzeniami, zapisując wyniki do nowej ścieżki CSV. Porównaj medianę i rozrzut ze swoim pierwszym pomiarem na tym samym komputerze. Wskaż zmienne zapisane w CSV oraz brakujące warunki, takie jak procesor, obciążenie, system operacyjny i kompilator. Wyjaśnij ich wpływ na wnioski.
 
-1. **5 minutes:** Ask the same question in two separate agent conversations (or with two available models). Save both answers, compare their checkable claims, and mark one important claim. Note any disagreement; agreement alone is not evidence.
-2. **10 minutes:** Find a relevant POSIX/Linux documentation page. Record its URL and what it says about the claim.
-3. **10 minutes:** Run a focused test and record the command and observed result. A small standalone test is fine if your library is unfinished. Explain what the test shows in its conditions and what still needs a documented rule.
-4. **10 minutes:** Save one small JSON evidence record with the fields `claim`, `source_url`, `test_command`, `observed`, and `verdict`. A team member must set `verdict` to **accept**, **revise**, or **reject** after reviewing both answers, the source, and the test. Note any unresolved uncertainty. Draw a small workflow, or write a short script, that collects the evidence and stops before submitting or updating a PR for this **human decision**. Show where an accepted change goes next (review and CI) and where a rejected or uncertain claim goes for revision.
+## 5. Pliki do oddania
 
-Bring the two saved answers, documentation link, test result, JSON record, and workflow sketch or script to the final discussion. This is a verification workflow design; it does not require a service or a new C++ API.
+W lokalnym repozytorium przygotuj:
 
-### If your team finishes early
+- `submission/raport.md` — początkowe i końcowe wyniki testów, historia prób, odpowiedzi na pytania o benchmark, pochodzenie danych, porównanie dwóch odpowiedzi AI, schemat weryfikacji i ograniczenia wniosków. Dodaj krótki szkic możliwego rozszerzenia, np. o proces potomny lub interfejs zdarzeniowy, ze wskazaniem nowych przypadków własności i błędów; implementacja rozszerzenia nie jest wymagana.
+- `submission/ai-evidence.json` — rekord dowodowy z części 4.
+- `submission/pipe.csv` — własne dane benchmarkowe albo CSV otrzymany od prowadzącego, z podanym w raporcie pochodzeniem.
+- `submission/throughput.png` — wykres, jeśli udało Ci się uruchomić skrypt analizy; brak wykresu wyjaśnij w raporcie.
 
-- Add one public test for `Pipe` move assignment. Give the destination pipe its own descriptors before the assignment and check with a POSIX call that those old descriptors are closed afterward. Explain why checking only the wrapper values would miss a leak.
-- Run the benchmark again with the same transfer settings and at least 10 repeats, saving to a fresh CSV path. Compare the median and spread with your own first run, not a supplied CSV from another machine. List the variables recorded in the CSV and relevant conditions it does not record, such as CPU, system load, OS, and compiler. Explain how these missing features limit any performance claim.
-
-## Finish and discuss
-
-Show the instructor your fork's PR, local test results, attempt log, CSV/plot or supplied-data analysis, and the afternoon evidence record and workflow. Mark what you could not verify. For the final architecture discussion, sketch one possible extension, such as a subprocess or an event-driven interface, and identify which new ownership or error cases it would introduce; no implementation is required.
+Do commita dodaj także zmienione pliki źródłowe i własne testy. Wszystkie materiały stanowiące rozwiązanie muszą znaleźć się w lokalnym commicie przed wykonaniem `git archive`. Archiwum ZIP do Moodle przygotuj według [README.md](README.md). Prowadzący może poprosić o wyjaśnienie kodu, testów i analizy.

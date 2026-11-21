@@ -1,27 +1,32 @@
-# MiniPOSIX workshop
+# MiniPOSIX – programowanie, testowanie i analiza w C++23
 
-A small Linux C++23 project for the BIP workshop **AI for Software Engineering and Data — Coding, Analysis and Intelligent Workflows** (17 November 2026). You will use an AI coding agent, check its work with tests and documentation, then collect and examine a simple I/O benchmark. The two workshop blocks are 09:15–11:30 and 12:00–13:40.
+Repozytorium startowe zadania dla studentów mechatroniki. Rozwiniesz niewielką bibliotekę C++23 korzystającą z mechanizmów systemu Linux, sprawdzisz ją testami i przeanalizujesz pomiary transferu danych. Dokładny kontrakt i wymagane ćwiczenia znajdują się w [ASSIGNMENT.md](ASSIGNMENT.md).
 
-No previous POSIX experience is required. A **file descriptor** is an integer handle to an open operating-system resource. A **pipe** connects a write end to a read end so bytes can flow between them. The starter deliberately leaves the main library functions unfinished; see [ASSIGNMENT.md](ASSIGNMENT.md) for the contract and activities.
+Nie musisz znać wcześniej POSIX-a. **Deskryptor pliku** to liczba identyfikująca otwarty zasób systemu. **Potok (pipe)** łączy koniec do zapisu z końcem do odczytu. Główne funkcje biblioteki są w starterze celowo niedokończone.
 
-## What you need
+## Wymagania
 
-- Linux. On university Windows computers, use the preconfigured Ubuntu virtual machine below. On your own computer, Ubuntu 24.04 LTS is recommended.
-- LLVM/Clang 22.x as `clang-22` and `clang++-22`, with C++23 support. The project presets use these executable names explicitly. On Ubuntu, follow the [official LLVM APT instructions](https://apt.llvm.org/) for your release if they are missing. A generic `clang++` command may select a different version.
-- CMake 3.28 or newer, Ninja, Git, and GoogleTest development files. On Ubuntu, install the test dependency with `sudo apt install libgtest-dev`.
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python 3.12 or newer for CSV analysis. `uv` manages the analysis environment locally and can install a compatible Python; see [analysis/README.md](analysis/README.md).
-- [OpenCode](https://opencode.ai/docs/) for the agent exercise. Use an available model; the workshop does not require a particular paid model or API key.
-- On university computers, configure CLion in the Ubuntu virtual machine as described below. The project can also be completed from a terminal.
+- Linux. Na komputerach uczelnianych z Windows użyj przygotowanej maszyny Ubuntu opisanej niżej. Na własnym komputerze zalecane jest Ubuntu 24.04 LTS.
+- LLVM/Clang 22 jako `clang-22` i `clang++-22`, z obsługą C++23. Presety CMake używają dokładnie tych nazw. Jeśli brakuje kompilatorów, skorzystaj z [instrukcji pakietów LLVM dla Ubuntu](https://apt.llvm.org/) właściwej dla Twojej wersji systemu.
+- CMake 3.28 lub nowszy, Ninja, Git, `unzip` oraz pakiet deweloperski GoogleTest. Na Ubuntu zależność testów można zainstalować poleceniem `sudo apt install libgtest-dev`.
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) i Python 3.12 lub nowszy do analizy CSV. `uv` tworzy lokalne środowisko i może pobrać odpowiednią wersję Pythona; szczegóły są w [analysis/README.md](analysis/README.md).
+- Dostęp do dowolnego narzędzia AI na potrzeby obowiązkowego ćwiczenia weryfikacyjnego. Przy implementacji użycie AI jest opcjonalne. Możesz użyć np. [OpenCode](https://opencode.ai/docs/); zadanie nie wymaga konkretnego płatnego modelu.
 
-## On university Windows computers
+Na stanowiskach uczelnianych skonfiguruj CLion zgodnie z instrukcją poniżej. Projekt można również zbudować i przetestować w terminalu.
 
-1. In Windows, open **Oracle VirtualBox**. Select the virtual machine labeled **Ubuntu 26.06 LTS AI** and start it. This is the name shown in VirtualBox.
-2. Open a terminal and CLion **inside the Ubuntu virtual machine**. Clone the repository and run all build, test, agent, and analysis commands there.
-3. In the Ubuntu terminal, check `command -v clang-22 clang++-22`. Both commands should resolve to `/usr/bin`.
-4. In CLion, open **Settings → Build, Execution, Deployment → Toolchains** and add or select a local toolchain. Set **C Compiler** to `/usr/bin/clang-22` and **C++ Compiler** to `/usr/bin/clang++-22`, then apply the settings.
-5. In **Settings → Build, Execution, Deployment → CMake**, enable the `clang22-debug` preset if it is disabled. Select that preset before building.
+Jeśli nie masz dostępu do narzędzia AI potrzebnego do ćwiczenia weryfikacyjnego, zgłoś to prowadzącemu przed rozpoczęciem tej części zadania.
 
-Check your tools before starting:
+Jeśli brakuje `uv`, zainstaluj je według [oficjalnej instrukcji](https://docs.astral.sh/uv/getting-started/installation/), na przykład poleceniem `curl -LsSf https://astral.sh/uv/install.sh | sh`. Otwórz nowy terminal i sprawdź `uv --version`. Pakiety do analizy zostaną zainstalowane w lokalnym `analysis/.venv`.
+
+## Komputery uczelniane z Windows
+
+1. W systemie Windows uruchom **Oracle VirtualBox**, wybierz maszynę oznaczoną **Ubuntu 26.06 LTS AI** i ją uruchom. Jest to nazwa wyświetlana w VirtualBox.
+2. Terminal i CLion uruchamiaj **wewnątrz maszyny Ubuntu**. Tam sklonuj repozytorium i wykonuj polecenia budowania, testowania oraz analizy.
+3. W terminalu Ubuntu sprawdź `command -v clang-22 clang++-22`. Oba kompilatory powinny znajdować się w `/usr/bin`.
+4. W CLion otwórz **Settings → Build, Execution, Deployment → Toolchains** i dodaj lub wybierz lokalny toolchain. Ustaw **C Compiler** na `/usr/bin/clang-22`, a **C++ Compiler** na `/usr/bin/clang++-22`.
+5. W **Settings → Build, Execution, Deployment → CMake** włącz preset `clang22-debug`, jeśli jest wyłączony, i wybierz go przed budowaniem.
+
+Sprawdź dostępność narzędzi przed rozpoczęciem pracy:
 
 ```bash
 command -v clang-22 clang++-22 cmake ninja git uv
@@ -31,40 +36,22 @@ cmake --version
 uv --version
 ```
 
-If LLVM is installed outside `/usr/bin`, put the directory containing both compiler executables on `PATH` **before** configuring CMake. For example, run `export PATH="/path/to/llvm/bin:$PATH"`, then confirm both paths with `command -v clang-22 clang++-22`. In CLion, set the C and C++ compiler paths in **Settings → Build, Execution, Deployment → Toolchains** and make sure CLion also inherits that `PATH` before choosing the matching CMake preset. The preset fixes the compiler for terminal and agent runs; changing only the CLion toolchain is insufficient.
+Jeśli kompilatory są zainstalowane poza `/usr/bin`, dodaj ich katalog do `PATH` **przed** konfiguracją CMake, a w CLion ustaw rzeczywiste ścieżki do obu kompilatorów. Upewnij się, że CLion dziedziczy ten sam `PATH`. Samo przestawienie kompilatora w toolchainie CLion nie zmienia kompilatora używanego przez terminal ani przez presety CMake.
 
-## Work in your team's fork
+## Pobranie projektu
 
-One fork per team of two or three is recommended. Replace the URL with your team's fork URL copied from GitHub.
+W terminalu Linux sklonuj repozytorium i przejdź do jego katalogu:
 
-1. Select **Fork** on the workshop repository. In your fork, open **Actions** and enable workflows if GitHub asks you to do so.
-2. Clone your fork and create a branch:
+```bash
+git clone https://github.com/michalmaj/miniposix-workshop.git
+cd miniposix-workshop
+```
 
-   ```bash
-   git clone https://github.com/YOUR-TEAM/miniposix-workshop.git
-   cd miniposix-workshop
-   git switch -c implement-miniposix
-   ```
+Przeczytaj [ASSIGNMENT.md](ASSIGNMENT.md) i publiczne nagłówki w `include/miniposix/`. Pracuj na lokalnej kopii. Do oddania zadania nie potrzebujesz forka, wysyłania zmian na GitHuba ani pull requesta.
 
-3. Start OpenCode in this directory with `opencode`. Ask it first to explain the API, POSIX operations, and a test plan. Review and approve every command it proposes. Read the changes it makes; use POSIX/C++ documentation and local tests to check its claims.
-4. Build and test locally (commands below). It is expected that the smoke test passes while the functional tests fail on the untouched starter.
-5. After you understand and verify your changes, commit and push your branch:
+## Budowanie i testy
 
-   ```bash
-   git add include src tests
-   git status --short
-   git commit -m "Implement MiniPOSIX exercise"
-   git push -u origin implement-miniposix
-   ```
-
-   Add any other public files you intentionally changed. Do not commit credentials, private notes, or generated benchmark results.
-6. On GitHub, open a pull request **from your branch to `main` in your own fork**. Check the **base repository** selector: it must name your team's fork, not the workshop source repository. Open the PR's **Checks** tab and the fork's **Actions** tab to inspect the results. Fix failures, push again, and repeat.
-
-CI reports build and test results. A green check is useful feedback, but it does not prove full correctness or count as automatic completion of the exercise.
-
-## Build and test
-
-Run these commands from the repository root. CMake finds the locally installed GoogleTest development package.
+Polecenia wykonuj z głównego katalogu repozytorium:
 
 ```bash
 cmake --preset clang22-debug
@@ -73,13 +60,13 @@ ctest --preset clang22-debug-smoke --no-tests=error
 ctest --preset clang22-debug-functional --no-tests=error
 ```
 
-To run every registered test, use `ctest --test-dir build/clang22-debug --output-on-failure`. The initial functional failures are the exercise's starting point. Run the smoke test separately to check the build and test infrastructure. Do not treat initial functional failures as a broken toolchain.
+W niezmienionym starterze test `smoke` powinien przejść, a część testów funkcjonalnych powinna się nie powieść: implementacja jest Twoim zadaniem. Po poprawkach uruchamiaj testy ponownie. Wszystkie zarejestrowane testy możesz uruchomić poleceniem `ctest --test-dir build/clang22-debug --output-on-failure`.
 
-For runtime debugging, a Debug build, a debugger, and optionally ASan/UBSan or `strace` can help. The exact library behavior is stated in the public headers and [ASSIGNMENT.md](ASSIGNMENT.md); a successful compile alone is not enough.
+Do diagnozowania błędów możesz użyć kompilacji Debug, debuggera, a opcjonalnie ASan/UBSan lub `strace`. Sama udana kompilacja nie potwierdza poprawności zarządzania deskryptorami; sprawdzaj zachowanie opisane w nagłówkach i [ASSIGNMENT.md](ASSIGNMENT.md).
 
-## Benchmark and CSV analysis
+## Benchmark i analiza CSV
 
-After your pipe implementation works and its tests pass, configure the optimized preset and run the supplied benchmark:
+Po przejściu testów biblioteki zbuduj wariant zoptymalizowany i wykonaj pomiary:
 
 ```bash
 cmake --preset clang22-perf
@@ -90,19 +77,51 @@ uv sync --project analysis --locked
 uv run --project analysis --locked python analysis/analyze.py bench-results/pipe.csv --plot bench-results/throughput.png
 ```
 
-By default, the benchmark transfers 8 MiB for each of three repeats at buffer sizes 512, 4096, and 65536 bytes. You can change these with `--bytes N --repeats N --buffer-sizes 512,4096,65536`. It verifies the transferred bytes and **appends** CSV rows, so use a fresh output path for a separate run. Inspect the CSV as well as the plot. This measures the **whole transfer scenario**, including I/O, scheduling, and buffer management; it does not isolate the cost of `UniqueFd`. Run performance measurements with `clang22-perf`, not the Debug preset.
+Domyślnie benchmark przesyła 8 MiB trzykrotnie dla każdego z buforów 512, 4096 i 65536 bajtów. Parametry można zmienić przez `--bytes N --repeats N --buffer-sizes 512,4096,65536`. Program sprawdza przesłane bajty i **dopisuje** wiersze do CSV, więc osobny pomiar zapisuj pod nową nazwą. Analizuj surowe dane i wykres. Pomiar obejmuje cały scenariusz transferu, a nie sam koszt `UniqueFd`; używaj presetu `clang22-perf`, a nie Debug.
 
-For installation and an explanation of the analysis commands, see [analysis/README.md](analysis/README.md). The Python packages go into `analysis/.venv`, not a global Python environment.
+Jeśli nie ukończysz biblioteki, do części analitycznej możesz użyć CSV udostępnionego przez prowadzącego. Zapisz jego pochodzenie i nie przedstawiaj takich pomiarów jako własnych. Instrukcja instalacji `uv` i uruchamiania analizy znajduje się także w [analysis/README.md](analysis/README.md).
 
-On Linux, optional local counters are available if `perf stat` and its permissions allow them:
+## Pliki do oddania
+
+Utwórz katalog `submission/` i zapisz w nim materiały do oceny:
 
 ```bash
-perf stat -e task-clock,cycles,instructions,context-switches \
-  ./build/clang22-perf/bench_pipe --repeats 1 --output bench-results/perf-run.csv
+mkdir -p submission
 ```
 
-If access to counters is denied, continue with the CSV timing results. CI does not use performance thresholds.
+- `submission/raport.md` – wyniki testów, opis prób i poprawek, interpretacja pomiarów, ograniczenia wniosków oraz odpowiedzi wymagane w [ASSIGNMENT.md](ASSIGNMENT.md).
+- `submission/ai-evidence.json` – dowód weryfikacji twierdzenia AI według pól wskazanych w zadaniu.
+- `submission/pipe.csv` – własny wynik benchmarku albo CSV od prowadzącego; w raporcie oznacz źródło danych.
+- `submission/throughput.png` – wykres, jeśli udało się uruchomić skrypt analizy.
 
-## If a service is unavailable
+Katalog `bench-results/` jest ignorowany przez Git. Jeśli benchmark i skrypt zapisały tam wyniki, skopiuj je przed commitem:
 
-If OpenCode or a model is unavailable, continue with your editor and record which parts you completed manually. If GitHub Actions is unavailable, run the same build and CTest commands locally and save the output for discussion. The instructor may provide a reference implementation for the measurement activity if a team cannot finish the library in time. You can still analyze a provided CSV and discuss the limits of its conclusions.
+```bash
+cp bench-results/pipe.csv submission/pipe.csv
+cp bench-results/throughput.png submission/throughput.png
+```
+
+Jeżeli analizujesz CSV od prowadzącego, skopiuj **ten** plik do `submission/pipe.csv` i zapisz jego pochodzenie w raporcie. Nie dodawaj do commita katalogów budowania, środowiska `analysis/.venv`, danych uwierzytelniających ani plików tymczasowych.
+
+## Lokalny commit i archiwum do Moodle
+
+Po zakończeniu pracy sprawdź zmiany, dodaj rozwiązanie i utwórz lokalny commit:
+
+```bash
+git status
+git diff
+git add include src tests submission
+git commit -m "Complete MiniPOSIX assignment"
+git status
+```
+
+Jeżeli zmieniłeś inne potrzebne pliki, dodaj je świadomie do commita. Po commicie katalog roboczy powinien być czysty. Archiwum utwórz **wyłącznie poleceniem `git archive`**, z głównego katalogu repozytorium:
+
+```bash
+git archive --format=zip --output=../miniposix_Nazwisko_Imie.zip HEAD
+unzip -l ../miniposix_Nazwisko_Imie.zip
+```
+
+Zastąp `Nazwisko_Imie` własnymi danymi w obu poleceniach. `git archive` umieszcza w ZIP tylko pliki zapisane w commicie `HEAD`. Sprawdź, czy lista zawiera zmienione źródła, testy i wymagane pliki z `submission/`. Prześlij **jeden** plik ZIP do Moodle. Nie przesyłaj katalogu `.git`, plików wykonywalnych ani archiwum pobranego bezpośrednio ze strony GitHub.
+
+Prowadzący może poprosić o wyjaśnienie kodu, wyników testów, analizy CSV i decyzji podjętych po weryfikacji AI.
